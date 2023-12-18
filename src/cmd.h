@@ -6,6 +6,8 @@
 #include "../util/parser/parser.h"
 
 #define SHELL_EXIT -100
+#define SUCCESS 0
+#define FAILURE 1
 
 /**
  * Parse and execute a command.

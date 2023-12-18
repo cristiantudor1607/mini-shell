@@ -6,6 +6,9 @@
 
 #include <fcntl.h>
 #include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include "cmd.h"
 #include "utils.h"
@@ -13,14 +16,42 @@
 #define READ		0
 #define WRITE		1
 
+#define PATH_MAX    1024
 /**
  * Internal change-directory command.
  */
 static bool shell_cd(word_t *dir)
 {
-	/* TODO: Execute cd. */
+    if (!dir)
+        return FAILURE;
 
-	return 0;
+    int words_counter = 0;
+    word_t *iterator = dir;
+
+    while (iterator) {
+        words_counter++;
+        iterator = iterator->next_word;
+    }
+
+    if (words_counter != 1)
+        return FAILURE;
+
+    char *new_path = get_word(dir);
+    int ret = chdir(new_path);
+    if (ret < 0)
+        return FAILURE;
+
+    return SUCCESS;
+}
+
+static int shell_pwd() {
+    char wd[PATH_MAX];
+    char *p = getcwd(wd, PATH_MAX);
+    if (!p)
+        return FAILURE;
+    printf("pwd: %s\n", wd);
+
+    return SUCCESS;
 }
 
 /**
@@ -30,7 +61,7 @@ static int shell_exit(void)
 {
 	/* TODO: Execute exit/quit. */
 
-	return 0; /* TODO: Replace with actual exit code. */
+	return SHELL_EXIT;
 }
 
 /**
@@ -39,9 +70,22 @@ static int shell_exit(void)
  */
 static int parse_simple(simple_command_t *s, int level, command_t *father)
 {
-	/* TODO: Sanity checks. */
+    if (!s || level < 0)
+        return FAILURE;
+
+    int args_no = -1;
+    char **argv = get_argv(s, &args_no);
+    char *command = argv[0];
 
 	/* TODO: If builtin command, execute the command. */
+    if (!strcmp(command, "cd"))
+        return shell_cd(s->params);
+
+    if (!strcmp(command, "pwd"))
+        return shell_pwd();
+
+    if (!strcmp(command, "exit") || !strcmp(command, "quit"))
+        return shell_exit();
 
 	/* TODO: If variable assignment, execute the assignment and return
 	 * the exit status.
@@ -55,7 +99,7 @@ static int parse_simple(simple_command_t *s, int level, command_t *father)
 	 *   3. Return exit status
 	 */
 
-	return 0; /* TODO: Replace with actual exit status. */
+    return 0; /* TODO: Replace with actual exit status. */
 }
 
 /**
@@ -85,15 +129,13 @@ static bool run_on_pipe(command_t *cmd1, command_t *cmd2, int level,
  */
 int parse_command(command_t *c, int level, command_t *father)
 {
-	/* TODO: sanity checks */
+    if (!c || level < 0)
+        return FAILURE;
 
-	if (c->op == OP_NONE) {
-		/* TODO: Execute a simple command. */
+    if (c->op == OP_NONE)
+        return parse_simple(c->scmd, level, father);
 
-		return 0; /* TODO: Replace with actual exit code of command. */
-	}
-
-	switch (c->op) {
+    switch (c->op) {
 	case OP_SEQUENTIAL:
 		/* TODO: Execute the commands one after the other. */
 		break;
