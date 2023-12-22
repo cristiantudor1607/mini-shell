@@ -348,34 +348,42 @@ int parse_command(command_t *c, int level, command_t *father)
     if (!c || level < 0)
         return FAILURE;
 
+    int ret = SUCCESS;
+
     if (c->op == OP_NONE)
         return parse_simple(c->scmd, level, father);
 
     switch (c->op) {
 	case OP_SEQUENTIAL:
-		/* TODO: Execute the commands one after the other. */
-		break;
-
+        // Execute both commands and return the exit code of the second one
+        parse_command(c->cmd1, level + 1, c);
+        return parse_command(c->cmd2, level + 1, c);
 	case OP_PARALLEL:
 		/* TODO: Execute the commands simultaneously. */
+        // TODO: Separate de &
+        //printf("OP_PARALLEL case\n");
 		break;
 
 	case OP_CONDITIONAL_NZERO:
-		/* TODO: Execute the second command only if the first one
-		 * returns non zero.
-		 */
-		break;
+        ret = parse_command(c->cmd1, level + 1, c);
+        if (ret == SUCCESS)
+            return SUCCESS;
+
+        return parse_command(c->cmd2, level + 1, c);
 
 	case OP_CONDITIONAL_ZERO:
-		/* TODO: Execute the second command only if the first one
-		 * returns zero.
-		 */
-		break;
+        ret = parse_command(c->cmd1, level + 1, c);
+        if (ret == FAILURE)
+            return FAILURE;
+
+        return parse_command(c->cmd2, level + 1, c);
 
 	case OP_PIPE:
 		/* TODO: Redirect the output of the first command to the
 		 * input of the second.
 		 */
+        // TODO: Separate de |
+        //printf("OP_PIPE case\n");
 		break;
 
 	default:
