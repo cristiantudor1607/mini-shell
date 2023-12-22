@@ -243,10 +243,15 @@ static int external_command(simple_command_t *s, int level, command_t *father)
     int ret = 0;
 
     // Make the parent process wait for the child process
-    if (pid > 0)
+    if (pid > 0) {
         waitpid(pid, &status, 0);
-    else
+
+        if (WIFEXITED(status))
+            ret = WEXITSTATUS(status);
+
+    } else {
         ret = execvp(command, argv);
+    }
 
     free_argv(argv, args_no);
     return ret;
@@ -366,18 +371,16 @@ int parse_command(command_t *c, int level, command_t *father)
 
 	case OP_CONDITIONAL_NZERO:
         ret = parse_command(c->cmd1, level + 1, c);
-        if (ret == SUCCESS)
-            return SUCCESS;
+        if (ret != SUCCESS)
+            return parse_command(c->cmd2, level + 1, c);
 
-        return parse_command(c->cmd2, level + 1, c);
-
+        return SUCCESS;
 	case OP_CONDITIONAL_ZERO:
         ret = parse_command(c->cmd1, level + 1, c);
-        if (ret == FAILURE)
-            return FAILURE;
+        if (ret != FAILURE)
+            return parse_command(c->cmd2, level + 1, c);
 
-        return parse_command(c->cmd2, level + 1, c);
-
+        return FAILURE;
 	case OP_PIPE:
 		/* TODO: Redirect the output of the first command to the
 		 * input of the second.
