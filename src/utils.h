@@ -17,6 +17,14 @@
 		}						\
 	} while (0)
 
+
+typedef enum {
+    CD,
+    PWD,
+    EXIT,
+    EXTERNAL,
+} command_type_t;
+
 /**
  * Concatenate parts of the word to obtain the command.
  */
@@ -27,5 +35,15 @@ char *get_word(word_t *s);
  * them directly to execv.
  */
 char **get_argv(simple_command_t *command, int *size);
+
+/**
+ * Frees the memory allocated for
+ */
+void free_argv(char **argv, int argc);
+
+/**
+ * Chooses which type of command to perform
+ */
+command_type_t parse_command_type(char *command);
 
 #endif /* _UTILS_H */

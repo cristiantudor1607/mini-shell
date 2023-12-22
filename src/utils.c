@@ -84,3 +84,26 @@ char **get_argv(simple_command_t *command, int *size)
 
 	return argv;
 }
+
+void free_argv(char **argv, int argc)
+{
+    for (int i = 0; i < argc; i++)
+        free(argv[i]);
+
+    free(argv);
+}
+
+command_type_t parse_command_type(char *command)
+{
+    if (!strcmp(command, "cd"))
+        return CD;
+
+    if (!strcmp(command, "pwd"))
+        return PWD;
+
+    if (!strcmp(command, "exit"))
+        return EXIT;
+
+    return EXTERNAL;
+}
+

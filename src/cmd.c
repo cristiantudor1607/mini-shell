@@ -17,6 +17,11 @@
 #define WRITE		1
 
 #define PATH_MAX    1024
+
+int stdout_backup;
+int stdin_backup;
+int stderr_backup;
+
 /**
  * Internal change-directory command.
  */
@@ -37,19 +42,25 @@ static bool shell_cd(word_t *dir)
         return FAILURE;
 
     char *new_path = get_word(dir);
+
     int ret = chdir(new_path);
+
+    free(new_path);
     if (ret < 0)
         return FAILURE;
 
     return SUCCESS;
 }
 
+/**
+ * Internal print-working-directory command.
+ */
 static int shell_pwd() {
     char wd[PATH_MAX];
     char *p = getcwd(wd, PATH_MAX);
     if (!p)
         return FAILURE;
-    printf("pwd: %s\n", wd);
+    printf("%s\n", wd);
 
     return SUCCESS;
 }
@@ -59,9 +70,186 @@ static int shell_pwd() {
  */
 static int shell_exit(void)
 {
-	/* TODO: Execute exit/quit. */
+	/* TODO: Add frees and closes */
 
 	return SHELL_EXIT;
+}
+
+static bool redirect_to_same_file(word_t *out, word_t *err, int io_flags)
+{
+    if (!out || !err)
+        return false;
+
+    char *out_filename = get_word(out);
+    char *err_filename = get_word(err);
+
+    size_t k = strcmp(out_filename, err_filename);
+
+    free(out_filename);
+    free(err_filename);
+
+    if (k != 0)
+        return false;
+
+    char *filename = get_word(out);
+    int fd;
+
+    if (io_flags == IO_REGULAR)
+        fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+    else
+        fd = open(filename, O_WRONLY | O_CREAT | O_APPEND, 0666);
+
+    free(filename);
+    DIE(fd < 0, "Failed open for write.\n");
+
+    stdout_backup = dup(STDOUT_FILENO);
+    stderr_backup = dup(STDERR_FILENO);
+
+    if (dup2(fd, STDOUT_FILENO) < 0) {
+        close(fd);
+        DIE(1, "Failed dup2 for stdout redirecting.\n");
+    }
+
+    if (dup2(fd, STDERR_FILENO) < 0) {
+        close(fd);
+        DIE(1, "Failed dup2 for stderr redirecting.\n");
+    }
+
+    close(fd);
+    return true;
+}
+
+
+static bool redirect_output(word_t *out_filename, int io_flags) {
+    if (!out_filename)
+       return false;
+
+    char *filename = get_word(out_filename);
+    int out_file;
+    if (io_flags == IO_REGULAR)
+         out_file = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+    else
+        out_file = open(filename, O_WRONLY | O_CREAT | O_APPEND, 0666);
+
+    free(filename);
+
+    DIE(out_file < 0, "Failed open for write.\n");
+
+    // Save the stdout
+    stdout_backup = dup(STDOUT_FILENO);
+
+    // Make a duplicate of the out_file and set it as STDOUT, using dup2
+    int fd = dup2(out_file, STDOUT_FILENO);
+
+    // Close the original file, because it is duplicated as stdout
+    close(out_file);
+
+    DIE(fd < 0, "Failed dup2 for stdout redirecting.\n");
+
+    return true;
+}
+
+static void restore_stdout() {
+    int fd = dup2(stdout_backup, STDOUT_FILENO);
+
+    DIE(fd < 0, "Failed dup2.\n");
+}
+
+static bool redirect_error(word_t *err_filename, int io_falgs) {
+    if (!err_filename)
+        return false;
+
+    char *filename = get_word(err_filename);
+
+    int err_file;
+
+    if (io_falgs == IO_REGULAR)
+        err_file = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+    else
+        err_file = open(filename, O_WRONLY | O_CREAT | O_APPEND, 0666);
+
+    free(filename);
+    DIE(err_file < 0, "Failed open for write.\n");
+
+    stderr_backup = dup(STDERR_FILENO);
+
+    int fd = dup2(err_file, STDERR_FILENO);
+
+    close(err_file);
+    DIE(fd < 0, "Failed dup2 for stderr redirecting.\n");
+
+    return true;
+}
+
+static void restore_stderr() {
+    int fd = dup2(stderr_backup, STDERR_FILENO);
+
+    DIE(fd < 0, "Failed dup2.\n");
+}
+
+
+
+static bool redirect_input(word_t *in_filename)
+{
+    if (!in_filename)
+        return false;
+
+    char *filename = get_word(in_filename);
+
+    int in_file = open(filename, O_RDONLY);
+
+    free(filename);
+
+    DIE(in_file < 0, "Failed open for read.\n");
+
+    // Save the stdin
+    stdin_backup = dup(STDIN_FILENO);
+
+    // Make a duplicate of the input file, and set it as stdin, using dup2
+    int fd = dup2(in_file, STDIN_FILENO);
+
+    close(in_file);
+
+    DIE(fd < 0, "Failed dup2 for stdin redirecting.\n");
+
+    return true;
+}
+
+static void restore_stdin() {
+    int fd = dup2(stdin_backup, STDIN_FILENO);
+
+    DIE(fd < 0, "Failed dup2.\n");
+}
+
+
+/**
+ * External command
+ */
+static int external_command(simple_command_t *s, int level, command_t *father)
+{
+    if (!s || level < 0)
+        return FAILURE;
+
+    int status = 0;
+
+    int args_no = -1;
+    char **argv = get_argv(s, &args_no);
+    char *command = argv[0];
+
+    pid_t pid = fork();
+    if (pid < 0)
+        return FAILURE;
+
+    int ret = 0;
+
+    // Make the parent process wait for the child process
+    if (pid > 0)
+        waitpid(pid, &status, 0);
+    else
+        ret = execvp(command, argv);
+
+    free_argv(argv, args_no);
+    return ret;
 }
 
 /**
@@ -73,19 +261,39 @@ static int parse_simple(simple_command_t *s, int level, command_t *father)
     if (!s || level < 0)
         return FAILURE;
 
+    int ret = 0;
+
     int args_no = -1;
     char **argv = get_argv(s, &args_no);
     char *command = argv[0];
 
-	/* TODO: If builtin command, execute the command. */
-    if (!strcmp(command, "cd"))
-        return shell_cd(s->params);
+    bool out_redirect = false, in_redirect = false, err_redirect = false;
 
-    if (!strcmp(command, "pwd"))
-        return shell_pwd();
+    if (redirect_to_same_file(s->out, s->err, s->io_flags)) {
+        out_redirect = true;
+        err_redirect = true;
+    } else {
+        out_redirect = redirect_output(s->out, s->io_flags);
+        err_redirect = redirect_error(s->err, s->io_flags);
+    }
 
-    if (!strcmp(command, "exit") || !strcmp(command, "quit"))
-        return shell_exit();
+    in_redirect = redirect_input(s->in);
+
+
+    switch (parse_command_type(command)) {
+        case CD:
+            ret = shell_cd(s->params);
+            break;
+        case PWD:
+            ret = shell_pwd();
+            break;
+        case EXIT:
+            ret = shell_exit();
+            break;
+        case EXTERNAL:
+            ret = external_command(s, level, father);
+            break;
+    }
 
 	/* TODO: If variable assignment, execute the assignment and return
 	 * the exit status.
@@ -99,7 +307,15 @@ static int parse_simple(simple_command_t *s, int level, command_t *father)
 	 *   3. Return exit status
 	 */
 
-    return 0; /* TODO: Replace with actual exit status. */
+    if (out_redirect)
+        restore_stdout();
+    if (in_redirect)
+        restore_stdin();
+    if (err_redirect)
+        restore_stderr();
+
+    free_argv(argv, args_no);
+    return ret;
 }
 
 /**
