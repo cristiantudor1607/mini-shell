@@ -18,6 +18,8 @@
 
 #define PATH_MAX    1024
 
+extern char **environ;
+
 int stdout_backup;
 int stdin_backup;
 int stderr_backup;
@@ -257,6 +259,26 @@ static int external_command(simple_command_t *s, int level, command_t *father)
     return ret;
 }
 
+static int  environment_assignment(simple_command_t *s)
+{
+    char *assignment = get_word(s->verb);
+
+    if (!strchr(assignment, '='))
+        return NOT_ASSIGNMENT;
+
+    // An expression NAME= is invalid
+    DIE(!s->verb->next_part->next_part, "Invalid variable assignment.\n");
+
+    const char *name = s->verb->string;
+
+    char *value = get_word(s->verb->next_part->next_part);
+
+    int ret = setenv(name, value, 1);
+
+    free(value);
+    return ret;
+}
+
 /**
  * Parse a simple command (internal, environment variable assignment,
  * external command).
@@ -296,21 +318,10 @@ static int parse_simple(simple_command_t *s, int level, command_t *father)
             ret = shell_exit();
             break;
         case EXTERNAL:
-            ret = external_command(s, level, father);
+            if (environment_assignment(s) == NOT_ASSIGNMENT)
+                ret = external_command(s, level, father);
             break;
     }
-
-	/* TODO: If variable assignment, execute the assignment and return
-	 * the exit status.
-	 */
-
-	/* TODO: If external command:
-	 *   1. Fork new process
-	 *     2c. Perform redirections in child
-	 *     3c. Load executable in child
-	 *   2. Wait for child
-	 *   3. Return exit status
-	 */
 
     if (out_redirect)
         restore_stdout();

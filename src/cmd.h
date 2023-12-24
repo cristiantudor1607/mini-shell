@@ -6,6 +6,7 @@
 #include "../util/parser/parser.h"
 
 #define SHELL_EXIT -100
+#define NOT_ASSIGNMENT 1000
 #define SUCCESS 0
 #define FAILURE 1
 
