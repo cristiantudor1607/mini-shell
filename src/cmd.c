@@ -239,8 +239,8 @@ static int external_command(simple_command_t *s, int level, command_t *father)
     char *command = argv[0];
 
     pid_t pid = fork();
-    if (pid < 0)
-        return FAILURE;
+
+    DIE(pid < 0, "Failed fork.\n");
 
     int ret = 0;
 
@@ -259,7 +259,7 @@ static int external_command(simple_command_t *s, int level, command_t *father)
     return ret;
 }
 
-static int  environment_assignment(simple_command_t *s)
+static int environment_assignment(simple_command_t *s)
 {
     char *assignment = get_word(s->verb);
 
@@ -337,12 +337,38 @@ static int parse_simple(simple_command_t *s, int level, command_t *father)
 /**
  * Process two commands in parallel, by creating two children.
  */
-static bool run_in_parallel(command_t *cmd1, command_t *cmd2, int level,
+static int run_in_parallel(command_t *cmd1, command_t *cmd2, int level,
 		command_t *father)
 {
-	/* TODO: Execute cmd1 and cmd2 simultaneously. */
+	int status_cmd1;
+    int status_cmd2;
 
-	return true; /* TODO: Replace with actual exit status. */
+    pid_t cmd1_pid = fork();
+
+    DIE(cmd1_pid < 0, "Failed fork.\n");
+
+    // In parent create another fork for the second process
+    if (cmd1_pid > 0) {
+        pid_t cmd2_pid = fork();
+
+        DIE(cmd2_pid < 0, "Failed fork.\n");
+
+        // In the parent wait for the both processes
+        waitpid(cmd1_pid, &status_cmd1, 0);
+        waitpid(cmd2_pid, &status_cmd2, 0);
+
+        if (WIFEXITED(status_cmd1) && WIFEXITED(status_cmd2))
+            return WEXITSTATUS(status_cmd1) | WEXITSTATUS(status_cmd2);
+
+    }
+
+    // In the child execute the command
+    if (cmd1_pid == 0) {
+        int ret = parse_simple(cmd1->scmd, level, father);
+        exit(ret);
+    }
+
+	return SUCCESS;
 }
 
 /**
@@ -375,11 +401,7 @@ int parse_command(command_t *c, int level, command_t *father)
         parse_command(c->cmd1, level + 1, c);
         return parse_command(c->cmd2, level + 1, c);
 	case OP_PARALLEL:
-		/* TODO: Execute the commands simultaneously. */
-        // TODO: Separate de &
-        //printf("OP_PARALLEL case\n");
-		break;
-
+        return run_in_parallel(c->cmd1, c->cmd2, level + 1, c);
 	case OP_CONDITIONAL_NZERO:
         ret = parse_command(c->cmd1, level + 1, c);
         if (ret != SUCCESS)
