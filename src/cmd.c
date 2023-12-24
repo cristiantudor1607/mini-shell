@@ -353,22 +353,30 @@ static int run_in_parallel(command_t *cmd1, command_t *cmd2, int level,
 
         DIE(cmd2_pid < 0, "Failed fork.\n");
 
-        // In the parent wait for the both processes
-        waitpid(cmd1_pid, &status_cmd1, 0);
-        waitpid(cmd2_pid, &status_cmd2, 0);
+        // In parent wait for both processes
+        if (cmd2_pid > 0) {
+            waitpid(cmd1_pid, &status_cmd1, 0);
+            waitpid(cmd2_pid, &status_cmd2, 0);
 
-        if (WIFEXITED(status_cmd1) && WIFEXITED(status_cmd2))
-            return WEXITSTATUS(status_cmd1) | WEXITSTATUS(status_cmd2);
+            if (WIFEXITED(status_cmd1) && WIFEXITED(status_cmd2)) {}
+                return WEXITSTATUS(status_cmd1) & WEXITSTATUS(status_cmd2);
+        }
+
+        // In the child execute the second command
+        if (cmd2_pid == 0) {
+            int ret = parse_command(cmd2, level, father);
+            exit(ret);
+        }
 
     }
 
     // In the child execute the command
     if (cmd1_pid == 0) {
-        int ret = parse_simple(cmd1->scmd, level, father);
+        int ret = parse_command(cmd1, level, father);
         exit(ret);
     }
 
-	return SUCCESS;
+    DIE(1, "Unreachable code\n");
 }
 
 /**
@@ -399,6 +407,7 @@ int parse_command(command_t *c, int level, command_t *father)
 	case OP_SEQUENTIAL:
         // Execute both commands and return the exit code of the second one
         parse_command(c->cmd1, level + 1, c);
+
         return parse_command(c->cmd2, level + 1, c);
 	case OP_PARALLEL:
         return run_in_parallel(c->cmd1, c->cmd2, level + 1, c);
