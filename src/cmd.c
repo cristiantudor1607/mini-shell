@@ -62,6 +62,7 @@ static int shell_pwd() {
     char *p = getcwd(wd, PATH_MAX);
     if (!p)
         return FAILURE;
+
     printf("%s\n", wd);
 
     return SUCCESS;
@@ -376,18 +377,83 @@ static int run_in_parallel(command_t *cmd1, command_t *cmd2, int level,
         exit(ret);
     }
 
-    DIE(1, "Unreachable code\n");
+    DIE(1, "Fatal error: Unreachable section.\n");
 }
 
 /**
  * Run commands by creating an anonymous pipe (cmd1 | cmd2).
  */
-static bool run_on_pipe(command_t *cmd1, command_t *cmd2, int level,
+static int run_on_pipe(command_t *cmd1, command_t *cmd2, int level,
 		command_t *father)
 {
-	/* TODO: Redirect the output of cmd1 to the input of cmd2. */
+    int pipefd[2];
+    int ret = pipe(pipefd);
 
-	return true; /* TODO: Replace with actual exit status. */
+    DIE(ret < 0, "Failed pipe.\n");
+
+    int cmd1_status, cmd2_status;
+    pid_t cmd1_pid = fork();
+
+    DIE(cmd1_pid < 0, "Failed fork.\n");
+
+    // In parent, we create another child process for the second command
+    if (cmd1_pid > 0) {
+        pid_t cmd2_pid = fork();
+
+        DIE(cmd2_pid < 0, "Failed fork.\n");
+
+        // In parent, we wait for the both processes to end
+        if (cmd2_pid > 0) {
+            close(pipefd[READ]);
+            close(pipefd[WRITE]);
+
+            waitpid(cmd1_pid, &cmd1_status, 0);
+            waitpid(cmd2_pid, &cmd2_status, 0);
+
+            // TODO: Return the exit code
+            if (WIFEXITED(cmd1_status) && WIFEXITED(cmd2_status))
+                return WEXITSTATUS(cmd2_status);
+        }
+
+        // In child, we execute the second command, but it takes the input via read
+        // "channel" of the pipe
+        if (cmd2_pid == 0) {
+            // We close the write "channel"
+            close(pipefd[WRITE]);
+
+            ret = dup2(pipefd[READ], STDIN_FILENO);
+            if (ret < 0) {
+                close(pipefd[READ]);
+                DIE(1, "Failed dup2 for read via pipe.\n");
+            }
+
+            ret = parse_command(cmd2, level, father);
+
+            close(pipefd[READ]);
+            return ret;
+        }
+
+    }
+
+    // In child, we execute the first command, and send it's output via write
+    // "channel" of the pipe
+    if (cmd1_pid == 0) {
+        // We close the read "channel"
+        close(pipefd[READ]);
+
+        ret = dup2(pipefd[WRITE], STDOUT_FILENO);
+        if (ret < 0) {
+            close(pipefd[WRITE]);
+            DIE(1, "Failed dup2 for write via pipe.\n");
+        }
+
+        ret = parse_command(cmd1, level, father);
+
+        close(pipefd[WRITE]);
+        return ret;
+    }
+
+    DIE(1, "Fatal error: Unreachable section.\n");
 }
 
 /**
@@ -424,12 +490,7 @@ int parse_command(command_t *c, int level, command_t *father)
 
         return FAILURE;
 	case OP_PIPE:
-		/* TODO: Redirect the output of the first command to the
-		 * input of the second.
-		 */
-        // TODO: Separate de |
-        //printf("OP_PIPE case\n");
-		break;
+        return run_on_pipe(c->cmd1, c->cmd2, level + 1, c);
 
 	default:
 		return SHELL_EXIT;
