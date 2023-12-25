@@ -254,6 +254,9 @@ static int external_command(simple_command_t *s, int level, command_t *father)
 
     } else {
         ret = execvp(command, argv);
+
+        if (ret < 0)
+            printf("Execution failed for \'%s\'\n", command);
     }
 
     free_argv(argv, args_no);
@@ -410,7 +413,6 @@ static int run_on_pipe(command_t *cmd1, command_t *cmd2, int level,
             waitpid(cmd1_pid, &cmd1_status, 0);
             waitpid(cmd2_pid, &cmd2_status, 0);
 
-            // TODO: Return the exit code
             if (WIFEXITED(cmd1_status) && WIFEXITED(cmd2_status))
                 return WEXITSTATUS(cmd2_status);
         }
@@ -490,7 +492,8 @@ int parse_command(command_t *c, int level, command_t *father)
 
         return FAILURE;
 	case OP_PIPE:
-        return run_on_pipe(c->cmd1, c->cmd2, level + 1, c);
+        ret = run_on_pipe(c->cmd1, c->cmd2, level + 1, c);
+        return ret;
 
 	default:
 		return SHELL_EXIT;
