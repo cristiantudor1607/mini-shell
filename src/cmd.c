@@ -318,10 +318,10 @@ static int parse_simple(simple_command_t *s, int level, command_t *father)
 	case PWD:
 		ret = shell_pwd();
 		break;
-	case EXIT:
+	case EXIT_SHELL:
 		ret = shell_exit();
 		break;
-	case EXTERNAL:
+	case EXTERNAL_CMD:
 		if (environment_assignment(s) == NOT_ASSIGNMENT)
 			ret = external_command(s, level, father);
 		break;
@@ -372,7 +372,6 @@ static int run_in_parallel(command_t *cmd1, command_t *cmd2, int level,
 
 			exit(ret);
 		}
-
 	}
 
 	// In first child execute the first command
@@ -436,7 +435,6 @@ static int run_on_pipe(command_t *cmd1, command_t *cmd2, int level,
 			close(pipefd[READ]);
 			exit(ret);
 		}
-
 	}
 
 	// In child, we execute the first command, and send it's output via write

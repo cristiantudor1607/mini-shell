@@ -21,8 +21,8 @@
 typedef enum {
     CD,
     PWD,
-    EXIT,
-    EXTERNAL,
+    EXIT_SHELL,
+    EXTERNAL_CMD,
 } command_type_t;
 
 /**

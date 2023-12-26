@@ -102,8 +102,8 @@ command_type_t parse_command_type(char *command)
 		return PWD;
 
 	if (!strcmp(command, "exit") || !strcmp(command, "quit"))
-		return EXIT;
+		return EXIT_SHELL;
 
-	return EXTERNAL;
+	return EXTERNAL_CMD;
 }
 
