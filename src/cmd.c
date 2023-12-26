@@ -468,36 +468,40 @@ int parse_command(command_t *c, int level, command_t *father)
 
     int ret = SUCCESS;
 
-    if (c->op == OP_NONE)
-        return parse_simple(c->scmd, level, father);
+    if (c->op == OP_NONE) {
+        // Execute the command and return it's exit code
+        ret = parse_simple(c->scmd, level, father);
+        goto end;
+    }
 
     switch (c->op) {
 	case OP_SEQUENTIAL:
         // Execute both commands and return the exit code of the second one
         parse_command(c->cmd1, level + 1, c);
-
-        return parse_command(c->cmd2, level + 1, c);
+        ret = parse_command(c->cmd2, level + 1, c);
+        break;
 	case OP_PARALLEL:
-        return run_in_parallel(c->cmd1, c->cmd2, level + 1, c);
+        ret = run_in_parallel(c->cmd1, c->cmd2, level + 1, c);
+        break;
 	case OP_CONDITIONAL_NZERO:
         ret = parse_command(c->cmd1, level + 1, c);
         if (ret != SUCCESS)
-            return parse_command(c->cmd2, level + 1, c);
+            ret = parse_command(c->cmd2, level + 1, c);
 
-        return SUCCESS;
+        break;
 	case OP_CONDITIONAL_ZERO:
         ret = parse_command(c->cmd1, level + 1, c);
         if (ret != FAILURE)
-            return parse_command(c->cmd2, level + 1, c);
-
-        return FAILURE;
+            ret =  parse_command(c->cmd2, level + 1, c);
+        
+        break;
 	case OP_PIPE:
         ret = run_on_pipe(c->cmd1, c->cmd2, level + 1, c);
-        return ret;
-
+        break;
 	default:
-		return SHELL_EXIT;
+		ret = SHELL_EXIT;
 	}
 
-	return 0; /* TODO: Replace with actual exit code of command. */
+end:
+	return ret;
 }
