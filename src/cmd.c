@@ -73,8 +73,6 @@ static int shell_pwd() {
  */
 static int shell_exit(void)
 {
-	/* TODO: Add frees and closes */
-
 	return SHELL_EXIT;
 }
 
@@ -255,6 +253,8 @@ static int external_command(simple_command_t *s, int level, command_t *father)
 
 		if (ret < 0)
 			printf("Execution failed for \'%s\'\n", command);
+
+		exit(ret);
 	}
 
 	free_argv(argv, args_no);
@@ -307,7 +307,6 @@ static int parse_simple(simple_command_t *s, int level, command_t *father)
 	}
 
 	in_redirect = redirect_input(s->in);
-
 
 	switch (parse_command_type(command)) {
 		case CD:
@@ -483,7 +482,7 @@ int parse_command(command_t *c, int level, command_t *father)
 		break;
 	case OP_CONDITIONAL_NZERO:
 		ret = parse_command(c->cmd1, level + 1, c);
-		if (ret == FAILURE)
+		if (ret != SUCCESS)
 			ret = parse_command(c->cmd2, level + 1, c);
 
 		break;
