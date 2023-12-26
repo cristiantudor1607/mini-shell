@@ -495,7 +495,7 @@ int parse_command(command_t *c, int level, command_t *father)
 		ret = parse_command(c->cmd1, level + 1, c);
 		if (ret == SUCCESS)
 			ret =  parse_command(c->cmd2, level + 1, c);
-		
+
 		break;
 	case OP_PIPE:
 		ret = run_on_pipe(c->cmd1, c->cmd2, level + 1, c);
