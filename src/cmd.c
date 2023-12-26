@@ -57,9 +57,11 @@ static bool shell_cd(word_t *dir)
 /**
  * Internal print-working-directory command.
  */
-static int shell_pwd() {
+static int shell_pwd(void)
+{
 	char wd[PATH_MAX];
 	char *p = getcwd(wd, PATH_MAX);
+
 	if (!p)
 		return FAILURE;
 
@@ -121,49 +123,51 @@ static bool redirect_to_same_file(word_t *out, word_t *err, int io_flags)
 }
 
 
-static bool redirect_output(word_t *out_filename, int io_flags) {
+static bool redirect_output(word_t *out_filename, int io_flags)
+{
 	if (!out_filename)
 	   return false;
 
 	char *filename = get_word(out_filename);
 	int out_file;
+
+	// Choose between append and truncate
 	if (io_flags == IO_REGULAR)
-		 out_file = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0666);
+		out_file = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0666);
 	else
 		out_file = open(filename, O_WRONLY | O_CREAT | O_APPEND, 0666);
-
+	
 	free(filename);
-
 	DIE(out_file < 0, "Failed open for write.\n");
 
-	// Save the stdout
+	// Make a copy of the stdout, because it will be replaced by another file
 	stdout_backup = dup(STDOUT_FILENO);
 
-	// Make a duplicate of the out_file and set it as STDOUT, using dup2
+	// Replace stdout with the output file
 	int fd = dup2(out_file, STDOUT_FILENO);
 
-	// Close the original file, because it is duplicated as stdout
 	close(out_file);
-
 	DIE(fd < 0, "Failed dup2 for stdout redirecting.\n");
 
 	return true;
 }
 
-static void restore_stdout() {
+static void restore_stdout()
+{
 	int fd = dup2(stdout_backup, STDOUT_FILENO);
 
 	DIE(fd < 0, "Failed dup2.\n");
 }
 
-static bool redirect_error(word_t *err_filename, int io_falgs) {
+static bool redirect_error(word_t *err_filename, int io_falgs)
+{
 	if (!err_filename)
 		return false;
 
 	char *filename = get_word(err_filename);
-
 	int err_file;
-
+	
+	// Choose between append or truncate
 	if (io_falgs == IO_REGULAR)
 		err_file = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0666);
 	else
@@ -172,8 +176,10 @@ static bool redirect_error(word_t *err_filename, int io_falgs) {
 	free(filename);
 	DIE(err_file < 0, "Failed open for write.\n");
 
+	// Make a copy of the stderr, because it will be replaced by another file
 	stderr_backup = dup(STDERR_FILENO);
 
+	// Replace the stderr with the error file
 	int fd = dup2(err_file, STDERR_FILENO);
 
 	close(err_file);
@@ -182,7 +188,8 @@ static bool redirect_error(word_t *err_filename, int io_falgs) {
 	return true;
 }
 
-static void restore_stderr() {
+static void restore_stderr()
+{
 	int fd = dup2(stderr_backup, STDERR_FILENO);
 
 	DIE(fd < 0, "Failed dup2.\n");
@@ -194,32 +201,29 @@ static bool redirect_input(word_t *in_filename)
 		return false;
 
 	char *filename = get_word(in_filename);
-
 	int in_file = open(filename, O_RDONLY);
 
 	free(filename);
-
 	DIE(in_file < 0, "Failed open for read.\n");
 
-	// Save the stdin
+	// Make a copy of the stdin, because it will be replaced by another file
 	stdin_backup = dup(STDIN_FILENO);
 
-	// Make a duplicate of the input file, and set it as stdin, using dup2
+	// Replace the stdin with the input file
 	int fd = dup2(in_file, STDIN_FILENO);
 
 	close(in_file);
-
 	DIE(fd < 0, "Failed dup2 for stdin redirecting.\n");
 
 	return true;
 }
 
-static void restore_stdin() {
+static void restore_stdin()
+{
 	int fd = dup2(stdin_backup, STDIN_FILENO);
 
 	DIE(fd < 0, "Failed dup2.\n");
 }
-
 
 /**
  * External command
