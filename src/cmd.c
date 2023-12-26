@@ -126,7 +126,7 @@ static bool redirect_to_same_file(word_t *out, word_t *err, int io_flags)
 static bool redirect_output(word_t *out_filename, int io_flags)
 {
 	if (!out_filename)
-	   return false;
+		return false;
 
 	char *filename = get_word(out_filename);
 	int out_file;
@@ -136,7 +136,7 @@ static bool redirect_output(word_t *out_filename, int io_flags)
 		out_file = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0666);
 	else
 		out_file = open(filename, O_WRONLY | O_CREAT | O_APPEND, 0666);
-	
+
 	free(filename);
 	DIE(out_file < 0, "Failed open for write.\n");
 
@@ -152,7 +152,7 @@ static bool redirect_output(word_t *out_filename, int io_flags)
 	return true;
 }
 
-static void restore_stdout()
+static void restore_stdout(void)
 {
 	int fd = dup2(stdout_backup, STDOUT_FILENO);
 
@@ -166,7 +166,7 @@ static bool redirect_error(word_t *err_filename, int io_falgs)
 
 	char *filename = get_word(err_filename);
 	int err_file;
-	
+
 	// Choose between append or truncate
 	if (io_falgs == IO_REGULAR)
 		err_file = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0666);
@@ -188,7 +188,7 @@ static bool redirect_error(word_t *err_filename, int io_falgs)
 	return true;
 }
 
-static void restore_stderr()
+static void restore_stderr(void)
 {
 	int fd = dup2(stderr_backup, STDERR_FILENO);
 
@@ -218,7 +218,7 @@ static bool redirect_input(word_t *in_filename)
 	return true;
 }
 
-static void restore_stdin()
+static void restore_stdin(void)
 {
 	int fd = dup2(stdin_backup, STDIN_FILENO);
 
@@ -272,13 +272,11 @@ static int environment_assignment(simple_command_t *s)
 	if (!strchr(assignment, '='))
 		return NOT_ASSIGNMENT;
 
-	// An expression NAME= is invalid
+	// Check for an expression like VARIABLE_NAME=
 	DIE(!s->verb->next_part->next_part, "Invalid variable assignment.\n");
 
 	const char *name = s->verb->string;
-
 	char *value = get_word(s->verb->next_part->next_part);
-
 	int ret = setenv(name, value, 1);
 
 	free(value);
@@ -314,19 +312,19 @@ static int parse_simple(simple_command_t *s, int level, command_t *father)
 	in_redirect = redirect_input(s->in);
 
 	switch (parse_command_type(command)) {
-		case CD:
-			ret = shell_cd(s->params);
-			break;
-		case PWD:
-			ret = shell_pwd();
-			break;
-		case EXIT:
-			ret = shell_exit();
-			break;
-		case EXTERNAL:
-			if (environment_assignment(s) == NOT_ASSIGNMENT)
-				ret = external_command(s, level, father);
-			break;
+	case CD:
+		ret = shell_cd(s->params);
+		break;
+	case PWD:
+		ret = shell_pwd();
+		break;
+	case EXIT:
+		ret = shell_exit();
+		break;
+	case EXTERNAL:
+		if (environment_assignment(s) == NOT_ASSIGNMENT)
+			ret = external_command(s, level, father);
+		break;
 	}
 
 	if (out_redirect)
