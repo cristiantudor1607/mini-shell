@@ -278,6 +278,7 @@ static int environment_assignment(simple_command_t *s)
 	int ret = setenv(name, value, 1);
 
 	free(value);
+	free(assignment);
 	return ret;
 }
 
