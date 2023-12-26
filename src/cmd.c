@@ -190,8 +190,6 @@ static void restore_stderr() {
 	DIE(fd < 0, "Failed dup2.\n");
 }
 
-
-
 static bool redirect_input(word_t *in_filename)
 {
 	if (!in_filename)
@@ -485,13 +483,13 @@ int parse_command(command_t *c, int level, command_t *father)
 		break;
 	case OP_CONDITIONAL_NZERO:
 		ret = parse_command(c->cmd1, level + 1, c);
-		if (ret != SUCCESS)
+		if (ret == FAILURE)
 			ret = parse_command(c->cmd2, level + 1, c);
 
 		break;
 	case OP_CONDITIONAL_ZERO:
 		ret = parse_command(c->cmd1, level + 1, c);
-		if (ret != FAILURE)
+		if (ret == SUCCESS)
 			ret =  parse_command(c->cmd2, level + 1, c);
 		
 		break;
