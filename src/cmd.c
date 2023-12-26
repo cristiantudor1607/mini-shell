@@ -351,32 +351,34 @@ static int run_in_parallel(command_t *cmd1, command_t *cmd2, int level,
 
 	DIE(cmd1_pid < 0, "Failed fork.\n");
 
-	// In parent create another fork for the second process
+	// In parent we create another process for the second command
 	if (cmd1_pid > 0) {
 		pid_t cmd2_pid = fork();
 
 		DIE(cmd2_pid < 0, "Failed fork.\n");
 
-		// In parent wait for both processes
+		// In parent we wait for both processes
 		if (cmd2_pid > 0) {
 			waitpid(cmd1_pid, &status_cmd1, 0);
 			waitpid(cmd2_pid, &status_cmd2, 0);
 
-			if (WIFEXITED(status_cmd1) && WIFEXITED(status_cmd2)) {}
+			if (WIFEXITED(status_cmd1) && WIFEXITED(status_cmd2))
 				return WEXITSTATUS(status_cmd1) & WEXITSTATUS(status_cmd2);
 		}
 
-		// In the child execute the second command
+		// In second child execute the second command
 		if (cmd2_pid == 0) {
 			int ret = parse_command(cmd2, level, father);
+
 			exit(ret);
 		}
 
 	}
 
-	// In the child execute the command
+	// In first child execute the first command
 	if (cmd1_pid == 0) {
 		int ret = parse_command(cmd1, level, father);
+
 		exit(ret);
 	}
 
