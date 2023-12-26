@@ -429,7 +429,7 @@ static int run_on_pipe(command_t *cmd1, command_t *cmd2, int level,
 			ret = parse_command(cmd2, level, father);
 
 			close(pipefd[READ]);
-			return ret;
+			exit(ret);
 		}
 
 	}
@@ -449,7 +449,7 @@ static int run_on_pipe(command_t *cmd1, command_t *cmd2, int level,
 		ret = parse_command(cmd1, level, father);
 
 		close(pipefd[WRITE]);
-		return ret;
+		exit(ret);
 	}
 
 	DIE(1, "Fatal error: Unreachable section.\n");
